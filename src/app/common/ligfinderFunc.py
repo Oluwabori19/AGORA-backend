@@ -48,18 +48,18 @@ def _build_criterion_clause(data, param_prefix):
 
 
 def generate_criteria_sql(groups):
-        """Build the final SQL WHERE fragment for grouped criteria.
+    """Build the final SQL WHERE fragment for grouped criteria.
 
-        The expected payload shape is:
-        - between_groups_operator: controls how groups are combined
-        - groups: list of group objects
-            - inner_operator: controls how criteria inside the group are combined
-            - criteria: list of criteria items
+    The expected payload shape is:
+    - between_groups_operator: controls how groups are combined
+    - groups: list of group objects
+        - inner_operator: controls how criteria inside the group are combined
+        - criteria: list of criteria items
 
-        Returns a tuple of:
-        - SQL fragment string
-        - merged parameters dictionary
-        """
+    Returns a tuple of:
+    - SQL fragment string
+    - merged parameters dictionary
+    """
     between_op = groups.get("between_groups_operator", "AND").upper()
     group_clauses = []
     params = {}

@@ -7,6 +7,54 @@ from app.models.ligfinderModel import MaximizerRequest
 
 router = APIRouter(prefix="/ligfinder", tags=["ligfinder"])
 
+
+def _criteria_sql_from_request(data: MaximizerRequest):
+    payload = None
+
+    if data.groups:
+        payload = {
+            "between_groups_operator": data.between_groups_operator,
+            "groups": [
+                {
+                    "inner_operator": g.inner_operator,
+                    "criteria": [
+                        {"data": c.data, "status": c.status}
+                        for c in g.criteria
+                    ]
+                }
+                for g in data.groups
+            ]
+        }
+    elif data.criteria:
+        payload = {
+            "between_groups_operator": "AND",
+            "groups": [
+                {
+                    "inner_operator": "OR",
+                    "criteria": [
+                        {"data": c.data, "status": c.status}
+                        for c in data.criteria
+                    ]
+                }
+            ]
+        }
+
+    if not payload:
+        return ""
+
+    criteria_sql, params = generate_criteria_sql(payload)
+    if not criteria_sql:
+        return ""
+
+    for param_key, param_value in params.items():
+        if isinstance(param_value, list):
+            param_str = "ARRAY[" + ", ".join(f"'{v}'" for v in param_value) + "]"
+        else:
+            param_str = f"'{param_value}'"
+        criteria_sql = criteria_sql.replace(f"%({param_key})s", param_str)
+
+    return criteria_sql
+
 @router.post("/maximizer", status_code=status.HTTP_200_OK)
 def discover_parcel_islands(data: MaximizerRequest = Body(...)):
     """
@@ -20,7 +68,7 @@ def discover_parcel_islands(data: MaximizerRequest = Body(...)):
 
         # Filter by geometry UUIDs if provided
         # Geometry UUIDs
-        if len(data.geometry) == 0:
+        if not data.geometry or len(data.geometry) == 0:
             pass  # No geometry filter applied
         elif len(data.geometry) == 1:
             where_clauses.append(f""" "UUID" = '{data.geometry[0]}'""")
@@ -29,10 +77,9 @@ def discover_parcel_islands(data: MaximizerRequest = Body(...)):
             where_clauses.append(f" \"UUID\" IN ({uuids})")
 
         # Filter by complex LGB/XPlanung-style criteria
-        if data.criteria:
-            criteria_sql = generate_criteria_sql(data.criteria)
-            if criteria_sql:
-                where_clauses.append(criteria_sql)
+        criteria_sql = _criteria_sql_from_request(data)
+        if criteria_sql:
+            where_clauses.append(criteria_sql)
 
         # Metric-based filtering (e.g., Shape_Area > value)
         if data.metric:
