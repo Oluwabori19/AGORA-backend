@@ -1,3 +1,9 @@
+"""Authentication endpoints for user registration, login, and token refresh.
+
+Implements JWT-based authentication with access and refresh tokens.
+Passwords are hashed with bcrypt before storage.
+"""
+
 from fastapi import APIRouter, Depends, status, HTTPException, Response
 from fastapi.security.oauth2 import OAuth2PasswordRequestForm
 from sqlalchemy.orm import Session
@@ -10,7 +16,7 @@ from app.auth.config import settings
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
-# tokenUrl come from under router/auth.py login function
+# OAuth2 scheme for Bearer token authentication
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
 
 
@@ -18,13 +24,13 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="auth/login")
     "/register", status_code=status.HTTP_201_CREATED, response_model=user_login.UserOut
 )
 def create_user(user: user_login.UserCreate, db: Session = Depends(database.get_db)):
-    """
-    Buna sadece admin ulasacak sekilde guncelle
+    """Register a new user account.
     
-    
+    Note: Currently unrestricted. Should be updated to allow only admin users
+    to create new accounts for production use.
     """
     try:
-        # hash the password = user.password
+        # Hash password before storing in database
         hashed_password = utils.hash(user.password)
         user.password = hashed_password
         new_user = user_model.User(**user.model_dump())
