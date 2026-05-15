@@ -1,9 +1,11 @@
+# Development stack: API + PostGIS + GeoServer + Metabase
 services:
   db:
-    image: kartoza/postgis:15-3.3
+    # Main PostGIS database used by the API
+    image: kartoza/postgis:15-3.4
     container_name: agora-dev-db-kartoza
     volumes:
-      - agora-dev-db-data:/var/lib/postgresql
+      - agora-dev-db-data:/var/lib/postgresql/15
     ports:
       - 5434:5432 # Map host port 5434 to container port 5432
     environment:
@@ -16,13 +18,15 @@ services:
       - agora_network
 
   api:
-    image: agora-api-image:latest # Assuming you've built this image
+    # FastAPI service (live reload enabled for development)
+    image: agora-api-image:latest
     container_name: agora-dev-api
     depends_on:
       - db
     command: |
       bash -c '
       cd /src &&
+      # Wait for database before starting API
       while !</dev/tcp/db/5432; do sleep 1; done &&
       poetry config virtualenvs.create false &&
       uvicorn app.main:app --reload --workers 1 --host 0.0.0.0 --port 8000'
@@ -35,6 +39,7 @@ services:
     networks:
       - agora_network
   geoserver:
+    # GeoServer for map publishing and spatial layers
     # build: ./geoserver
     image: agora-geoserver:2.25.6
     container_name: agora-geoserver-dev-container
@@ -42,7 +47,9 @@ services:
       - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
       - GEOSERVER_ADMIN_PASSWORD=${GEOSERVER_ADMIN_PASSWORD}
     volumes:
+      # Persistent GeoServer data directory
       - agora-geoserver-data-dev:/geoserver_data/data
+      # Local host paths for development datasets
       - /home/ortak/Desktop/sandbox/tosca-geoserver-postgis-test/docker-geoserver/geo-data:/mnt/data
       - /home/ortak/Desktop/HCU/LIG/data:/mnt/LIG
     ports:
@@ -51,6 +58,7 @@ services:
       - agora_network
 
   metabase:
+    # BI dashboard service
     image: metabase/metabase:v0.56.8
     container_name: metabase
     ports:
@@ -68,6 +76,7 @@ services:
     depends_on:
       - metabase_db
   metabase_db:
+    # Separate Postgres database for Metabase metadata
     image: postgres:15
     container_name: metabase_db
     expose:
@@ -87,9 +96,11 @@ services:
 
 networks:
   agora_network:
+    # Shared bridge network for all containers
     driver: bridge
 
 volumes:
+  # Named volumes to persist service data between restarts
   agora-dev-db-data:
   agora-geoserver-data-dev:
   metabase_db_data:
