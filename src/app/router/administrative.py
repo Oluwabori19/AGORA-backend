@@ -97,7 +97,7 @@ def get_administrative_feature_data(table_id: int, target_column: TargetColumn):
         )
         if table_name is None:
             raise HTTPException(status_code=404, detail="Table not found")
-        # SQL sorgusu oluştur
+        # Create SQL query
         tuple_gid = tuple(target_column.target_value_list)
         sql_query = f"""
             select json_build_object(

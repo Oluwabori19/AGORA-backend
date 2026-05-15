@@ -34,7 +34,7 @@ import logging
 def get_table(table_name: str, db: Session = Depends(database.get_db)):
     print(table_name)
     try:
-        # SQL sorgusunu hazırla
+        # Prepare SQL query
         query = text(
             f"""
             SELECT json_build_object(
@@ -51,10 +51,10 @@ def get_table(table_name: str, db: Session = Depends(database.get_db)):
         """
         )
         print(query)
-        # Sorguyu çalıştır ve sonucu al
+        # Execute query and get result
         result = db.execute(query)
         print(result)
-        table_info = result.fetchone()[0]  # İlk sütunun değerini al
+        table_info = result.fetchone()[0]  # Get first column value
 
         return table_info
     except Exception as error:
@@ -108,17 +108,17 @@ GEOSERVER_REST_URL = "http://dev.geoserver.tosca.dcs.hcu-hamburg.de/geoserver/re
 
 @router.get("/geoserver/roles")
 async def get_geoserver_roles():
-    # Geoserver RESTConfig API'sine erişim sağlayacak istemci oluştur
+    # Create client to access Geoserver RESTConfig API
     session = requests.Session()
-    session.auth = ("hcu", "hcu123")  # Geoserver yönetici kullanıcı adı ve şifresi
+    session.auth = ("hcu", "hcu123")  # Geoserver admin username and password
 
-    # Geoserver RESTConfig API'sinden rolleri getirmek için istek yap
+    # Make request to get roles from Geoserver RESTConfig API
     response = session.get(f"{GEOSERVER_REST_URL}/roles.json")
     print(response)
-    # İstek başarılıysa rolleri JSON formatında al
+    # If request is successful, get roles in JSON format
     if response.status_code == 200:
         roles = response.json()["roles"]["role"]
         role_names = [role["name"] for role in roles]
         return role_names
     else:
-        return {"error": "Geoserver rolleri alınamadı."}
+        return {"error": "Could not fetch Geoserver roles."}
