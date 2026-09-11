@@ -17,7 +17,7 @@ services:
       - agora_network
 
   api:
-    image: agora-api-image:latest # Assuming you've built this image
+    image: agora-api-image:geoserver_proxy # Assuming you've built this image
     container_name: agora-prod-api
     depends_on:
       - db
@@ -37,7 +37,7 @@ services:
       - agora_network
   geoserver:
     # build: ./geoserver
-    image: agora-geoserver:2.25.6
+    image: agora-geoserver:2.27.6
     container_name: agora-geoserv..er-prod-container
     environment:
       - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
@@ -52,7 +52,7 @@ services:
       - agora_network
 
   metabase:
-    image: metabase/metabase:v0.56.8
+    image: metabase/metabase:v0.63.5
     container_name: metabase
     ports:
       - "3001:3000"

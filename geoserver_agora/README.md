@@ -8,9 +8,9 @@ For example, download the plugins `mbstyle-plugin` and `vectortiles` for GeoServ
 
 ```sh
 chmod +x download_plugins.sh
-./download_plugins.sh "2.25.6" "mbstyle vectortiles"
+./download_plugins.sh "2.27.6" "mbstyle vectortiles"
 ```
-docker build . -t  agora-geoserver:2.25.6
+docker build . -t  agora-geoserver:2.27.6
 > :warning: **Warning**
 >
 > Make sure you do store irretrievable data in that directory!

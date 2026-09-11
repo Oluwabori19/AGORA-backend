@@ -70,7 +70,7 @@ ENV TZ UTC
 
 # Install latest mambaforge in ${CONDA_DIR}
 RUN echo "Installing Mambaforge..." \
-    && URL="https://github.com/conda-forge/miniforge/releases/latest/download/Mambaforge-Linux-x86_64.sh" \
+    && URL="https://github.com/conda-forge/miniforge/releases/download/25.3.1-0/Miniforge3-25.3.1-0-Linux-x86_64.sh" \
     && wget --quiet ${URL} -O installer.sh \
     && /bin/bash installer.sh -u -b -p ${CONDA_DIR} \
     && rm installer.sh \
@@ -83,8 +83,8 @@ RUN echo "Installing Mambaforge..." \
     && find ${CONDA_DIR} -follow -type f -name '*.a' -delete
     #conda create -p conda-pkg.yaml -c conda-forge mamba conda-lock poetry='1.3'
 WORKDIR /mnt/${NB_USER}/installation/
-# Copy importan files for installation
-COPY ./*yml ./*.toml ./*.lock ./.config/* /mnt/${NB_USER}/installation/ 
+# Copy important files for installation
+COPY ./*yml ./*.toml ./*.lock /mnt/${NB_USER}/installation/ 
     # -----------------------------------------------------------------------------------------------
 # # Check for conda-lock.yml or environment.yml
 RUN if [ -s "conda-lock.yml" ]; then \

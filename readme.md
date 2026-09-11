@@ -82,7 +82,7 @@ geoserver_base/
 
 ```bash
 cd geoserver_base/
-docker build -t dcs-base-geoserver:2.25.6 .
+docker build -t dcs-base-geoserver:2.27.6 .
 ```
 
 ### 📦 2. Download Plugins
@@ -90,7 +90,7 @@ docker build -t dcs-base-geoserver:2.25.6 .
 ```bash
 cd geoserver_agora/
 chmod +x download_plugins.sh
-./download_plugins.sh "2.25.6" "mbstyle vectortiles"
+./download_plugins.sh "2.27.6" "mbstyle vectortiles"
 ```
 
 > ⚠️ Warning: `plugins/` will be wiped before downloading.
@@ -98,7 +98,7 @@ chmod +x download_plugins.sh
 ### 🚀 3. Build AGORA GeoServer Image
 
 ```bash
-docker build . -t agora-geoserver:2.25.6
+docker build . -t agora-geoserver:2.27.6
 ```
 
 ---

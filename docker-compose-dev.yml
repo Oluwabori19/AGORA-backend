@@ -19,7 +19,7 @@ services:
 
   api:
     # FastAPI service (live reload enabled for development)
-    image: agora-api-image:latest
+    image: agora-api-image:geoserver_proxy
     container_name: agora-dev-api
     depends_on:
       - db
@@ -41,7 +41,7 @@ services:
   geoserver:
     # GeoServer for map publishing and spatial layers
     # build: ./geoserver
-    image: agora-geoserver:2.25.6
+    image: agora-geoserver:2.27.6
     container_name: agora-geoserver-dev-container
     environment:
       - GEOSERVER_ADMIN_USER=${GEOSERVER_ADMIN_USER}
@@ -58,8 +58,7 @@ services:
       - agora_network
 
   metabase:
-    # BI dashboard service
-    image: metabase/metabase:v0.56.8
+    image: metabase/metabase:v0.63.5
     container_name: metabase
     ports:
       - "3001:3000"
