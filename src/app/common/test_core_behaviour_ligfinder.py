@@ -3,7 +3,7 @@ from unittest.mock import MagicMock
 
 
 # ── Import the function under test ─────────────────────────────────────────────
-from .ligfinderFunc import generate_criteria_sql
+from .ligfinderFuncAdvanced import generate_criteria_sql
 
 
 # ── Helper ─────────────────────────────────────────────────────────────────────

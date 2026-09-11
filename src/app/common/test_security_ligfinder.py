@@ -1,7 +1,7 @@
 import pytest
 from unittest.mock import MagicMock
 
-from .ligfinderFunc import (
+from .ligfinderFuncAdvanced import (
     generate_criteria_sql,
     CriteriaLimitExceeded,
     DEFAULT_MAX_VALUE_LENGTH,

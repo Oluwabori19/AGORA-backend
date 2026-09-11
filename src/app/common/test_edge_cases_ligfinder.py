@@ -4,7 +4,7 @@ from unittest.mock import MagicMock
 
 # ── Import the function under test ─────────────────────────────────────────────
 # Adjust this import to match your project structure
-from .ligfinderFunc import generate_criteria_sql, CriteriaLimitExceeded
+from .ligfinderFuncAdvanced import generate_criteria_sql, CriteriaLimitExceeded
 
 
 # ── Helper: build a mock criteria item ────────────────────────────────────────

@@ -1,6 +1,6 @@
 import pytest
 from unittest.mock import MagicMock
-from .ligfinderFunc import generate_criteria_sql, CriteriaLimitExceeded
+from .ligfinderFuncAdvanced import generate_criteria_sql, CriteriaLimitExceeded
 
 
 # ── Helper: build a mock criteria item ────────────────────────────────────────

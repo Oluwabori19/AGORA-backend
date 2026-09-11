@@ -1,36 +1,11 @@
-import re
 from fastapi import APIRouter, Body, HTTPException, status
+from typing import List, Optional, Any
+from pydantic import BaseModel
 from app.auth import database
-from app.common.ligfinderFunc import generate_criteria_sql, CriteriaLimitExceeded
+from app.common.ligfinderFunc import generate_criteria_sql
 from app.models.ligfinderModel import MaximizerRequest
 
 router = APIRouter(prefix="/ligfinder", tags=["ligfinder"])
-
-_SAFE_IDENT = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
-_ALLOWED_OPS = {"=", "!=", "<>", "<", ">", "<=", ">="}
-
-
-def _validate_ident(value: str, label: str) -> str:
-    if not _SAFE_IDENT.match(value):
-        raise ValueError(f"Invalid {label}: {value!r}")
-    return value
-
-
-def _validate_op(op: str) -> str:
-    if op not in _ALLOWED_OPS:
-        raise ValueError(f"Invalid SQL operator: {op!r}")
-    return op
-
-
-def _embed_params(sql: str, params: dict) -> str:
-    # Named params (`:p0`) cannot bind inside dollar-quoted $$ blocks executed by
-    # pgr_connectedComponents. Substitute them with properly-escaped SQL literals instead.
-    result = sql
-    for key, val in params.items():
-        safe_val = str(val).replace("'", "''")
-        result = result.replace(f":{key}", f"'{safe_val}'")
-    return result
-
 
 @router.post("/maximizer", status_code=status.HTTP_200_OK)
 def discover_parcel_islands(data: MaximizerRequest = Body(...)):
@@ -40,71 +15,56 @@ def discover_parcel_islands(data: MaximizerRequest = Body(...)):
     Returns GeoJSON FeatureCollection of parcel clusters larger than a given threshold.
     """
     try:
-        table = _validate_ident(data.table_name, "table_name")
+        # Construct dynamic WHERE conditions based on request input
+        where_clauses = []
 
-        # Build two parallel WHERE clause lists:
-        #   outer_* — uses named :params, passed to execute_sql_query
-        #   inner_* — values embedded as SQL literals, used inside pgr_connectedComponents $$...$$
-        outer_clauses = []
-        inner_clauses = []
-        all_params = {}
+        # Filter by geometry UUIDs if provided
+        # Geometry UUIDs
+        if len(data.geometry) == 0:
+            pass  # No geometry filter applied
+        elif len(data.geometry) == 1:
+            where_clauses.append(f""" "UUID" = '{data.geometry[0]}'""")
+        else:
+            uuids = ', '.join(f"'{uuid}'" for uuid in data.geometry)
+            where_clauses.append(f" \"UUID\" IN ({uuids})")
 
-        # Geometry UUIDs — parameterized for outer query, embedded for inner
-        geometry = data.geometry or []
-        if len(geometry) == 1:
-            all_params["geom_0"] = str(geometry[0])
-            outer_clauses.append('"UUID" = :geom_0')
-            inner_clauses.append(f'"UUID" = \'{str(geometry[0]).replace(chr(39), chr(39)*2)}\'')
-        elif len(geometry) > 1:
-            for i, uuid_val in enumerate(geometry):
-                all_params[f"geom_{i}"] = str(uuid_val)
-            outer_clauses.append(
-                f'"UUID" IN ({", ".join(f":geom_{i}" for i in range(len(geometry)))})'
-            )
-            _quoted_uuids = ", ".join("'" + str(u).replace("'", "''") + "'" for u in geometry)
-            inner_clauses.append(f'"UUID" IN ({_quoted_uuids})')
-
-        # Criteria — unpack tuple, build outer (params) and inner (embedded) versions
+        # Filter by complex LGB/XPlanung-style criteria
         if data.criteria:
-            criteria_sql, criteria_params = generate_criteria_sql(data.criteria)
+            criteria_sql = generate_criteria_sql(data.criteria)
             if criteria_sql:
-                all_params.update(criteria_params)
-                outer_clauses.append(criteria_sql)
-                inner_clauses.append(_embed_params(criteria_sql, criteria_params))
+                where_clauses.append(criteria_sql)
 
-        # Metric filters — column/op validated, values parameterized for outer, embedded for inner
+        # Metric-based filtering (e.g., Shape_Area > value)
         if data.metric:
-            for i, m in enumerate(data.metric):
-                col = _validate_ident(m.column, "metric column")
-                op = _validate_op(m.operation)
-                key = f"metric_{i}"
-                all_params[key] = m.value
-                outer_clauses.append(f'"{col}" {op} :{key}')
-                safe_val = str(m.value).replace("'", "''")
-                inner_clauses.append(f'"{col}" {op} \'{safe_val}\'')
+            metric_sql = " AND ".join(
+                f'"{m.column}" {m.operation} {m.value}' for m in data.metric
+            )
+            if metric_sql:
+                where_clauses.append(metric_sql)
 
-        # GRZ filters — same approach as metric
+        # GRZ (site occupancy index) filtering
         if data.grz:
-            for i, g in enumerate(data.grz):
-                col = _validate_ident(g.column, "grz column")
-                op = _validate_op(g.operation)
-                key = f"grz_{i}"
-                all_params[key] = g.value
-                outer_clauses.append(f'"{col}" {op} :{key}')
-                safe_val = str(g.value).replace("'", "''")
-                inner_clauses.append(f'"{col}" {op} \'{safe_val}\'')
+            grz_sql = " AND ".join(
+                f'"{g.column}" {g.operation} {g.value}' for g in data.grz
+            )
+            if grz_sql:
+                where_clauses.append(grz_sql)
 
-        outer_where = " AND ".join(outer_clauses) if outer_clauses else "TRUE"
-        inner_where = " AND ".join(inner_clauses) if inner_clauses else "TRUE"
-
-        all_params["threshold"] = float(data.threshold)
-
+        # Combine all filters into a single WHERE clause
+        final_where = " AND ".join(where_clauses) if where_clauses else "TRUE"
+        print(f"Final WHERE clause: {final_where}")
+        # SQL query using CTEs to:
+        # - Filter parcels
+        # - Select edges between touching parcels
+        # - Map UUIDs to PG Routing node IDs
+        # - Run pgr_connectedComponents on edge list
+        # - Aggregate clusters that exceed threshold area
         sql = f"""
 WITH
 filtered AS (
     SELECT "UUID", geom, "Shape_Area"
-    FROM {table}
-    WHERE {outer_where}
+    FROM {data.table_name}
+    WHERE {final_where}
 ),
 touch_edges AS (
     SELECT
@@ -126,8 +86,8 @@ components AS (
     SELECT * FROM pgr_connectedComponents($$
         WITH
         filtered AS (
-            SELECT "UUID" FROM {table}
-            WHERE {inner_where}
+            SELECT "UUID" FROM {data.table_name}
+            WHERE {final_where}
         ),
         touch_edges AS (
             SELECT
@@ -169,7 +129,7 @@ aggregated_clusters AS (
     FROM clustered cl
     JOIN filtered f ON cl."UUID" = f."UUID"
     GROUP BY cl.cluster_id
-    HAVING SUM(f."Shape_Area") > :threshold
+    HAVING SUM(f."Shape_Area") > {data.threshold}
 ),
 single_parcels AS (
     SELECT
@@ -181,7 +141,7 @@ single_parcels AS (
     WHERE NOT EXISTS (
         SELECT 1 FROM clustered cl WHERE cl."UUID" = f."UUID"
     )
-    AND "Shape_Area" > :threshold
+    AND "Shape_Area" > {data.threshold}
 )
 
 SELECT * FROM aggregated_clusters
@@ -190,7 +150,8 @@ SELECT * FROM single_parcels
 ORDER BY total_area DESC;
 """
 
-        result = database.execute_sql_query(sql, all_params).fetchall()
+        # Execute SQL and convert results into GeoJSON
+        result = database.execute_sql_query(sql).fetchall()
         return {
             "type": "FeatureCollection",
             "features": [
@@ -207,7 +168,5 @@ ORDER BY total_area DESC;
             ],
         }
 
-    except (ValueError, CriteriaLimitExceeded) as e:
-        raise HTTPException(status_code=400, detail=str(e))
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
