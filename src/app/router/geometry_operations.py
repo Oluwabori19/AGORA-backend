@@ -1,55 +1,45 @@
-import re
-import json
 from fastapi import APIRouter, Body, status, HTTPException, Response
+from sqlalchemy.orm import Session
+import json
 import geopandas as gpd
+
 
 from app.auth import database
 from app.models.geometryOperationModel import FilterFeatureCollection
 import app.common.geopandsFuncs as geopandsFuncs
 
 router = APIRouter(prefix="/geometry", tags=["geometryOperations"])
-
-_SAFE_IDENT = re.compile(r'^[a-zA-Z_][a-zA-Z0-9_]*$')
-
-
-def _validate_ident(value: str, label: str) -> str:
-    if not _SAFE_IDENT.match(value):
-        raise ValueError(f"Invalid {label}: {value!r}")
-    return value
-
-
 @router.post("/filter", status_code=status.HTTP_201_CREATED)
 def geo_filter(data: FilterFeatureCollection = Body(...)):
-    """Filter parcels by geometry intersection.
-    
-    Accepts GeoJSON features and returns UUIDs of parcels that intersect
-    with either the union or intersection of input geometries.
-    """
     try:
-        table = _validate_ident(data.tableName, "tableName")
         gdf = gpd.read_file(data.model_dump_json(), driver="GeoJSON")
-        
-        # Compute target geometry: union (combine all) or intersection (overlap)
         if data.union == True:
             input_geometry = gdf.unary_union
         else:
             input_geometry = geopandsFuncs.intersect_geodataframe(gdf)
             if not input_geometry:
                 return Response(status_code=status.HTTP_409_CONFLICT)
-
-        geom_json = json.dumps(input_geometry.__geo_interface__)
-        sql_query = f"""
+        sql_query = """
         SELECT json_build_object('UUIDs', json_agg("UUID")) AS result
-        FROM {table} AS p
-        WHERE ST_Intersects(p.geom, ST_GeomFromGeoJSON(:geom)::geometry);
-        """
-        sql_answer = database.execute_sql_query(sql_query, {"geom": geom_json})
+         FROM %s AS p
+         WHERE ST_Intersects(p.geom, (ST_GeomFromGeoJSON('%s'))::geometry);
+        """ % (
+        data.tableName,
+        json.dumps(input_geometry.__geo_interface__)
+        )
+        sql_answer = database.execute_sql_query(sql_query)
+        # we get the first row of the result which is geojson
         raw_data = sql_answer.fetchone()
         return raw_data[0]
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"A ValueError error occurred: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        # Handle data validation errors
+        raise HTTPException(
+            status_code=400, detail=f"An ValueError error occurred: {e}"
+        )
+    except Exception as e:  # Catch generic errors
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {e}"
+        )
 
 
 from app.models.isochronesModel import IsochroneCreate
@@ -80,9 +70,14 @@ def create_isochrones(data: IsochroneCreate = Body(...)):
         lng = float(center.lng)
         lat = float(center.lat)
         mode = data.mode
-        return get_iso_aoi(mode, lng, lat, time)
+        return get_iso_aoi(mode, lng, lat, time)  # done
 
     except ValueError as e:
-        raise HTTPException(status_code=400, detail=f"An ValueError error occurred: {e}")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"An unexpected error occurred: {e}")
+        # Handle data validation errors
+        raise HTTPException(
+            status_code=400, detail=f"An ValueError error occurred: {e}"
+        )
+    except Exception as e:  # Catch generic errors
+        raise HTTPException(
+            status_code=500, detail=f"An unexpected error occurred: {e}"
+        )
